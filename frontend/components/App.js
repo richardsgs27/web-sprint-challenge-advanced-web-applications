@@ -16,12 +16,16 @@ export default function App() {
   const [currentArticleId, setCurrentArticleId] = useState()
   const [spinnerOn, setSpinnerOn] = useState(false)
 
+
   // ✨ Research `useNavigate` in React Router v.6
   const navigate = useNavigate()
-  const redirectToLogin = () => { /* ✨ implement */ }
-  const redirectToArticles = () => { /* ✨ implement */ }
+  const redirectToLogin = () => { navigate("/")}
+  const redirectToArticles = () => {navigate("/articles")}
 
   const logout = () => {
+    window.localStorage.removeItem("token");
+    setMessage("Goodbye!");
+    redirectToLogin()
     // ✨ implement
     // If a token is in local storage it should be removed,
     // and a message saying "Goodbye!" should be set in its proper state.
@@ -30,6 +34,22 @@ export default function App() {
   }
 
   const login = ({ username, password }) => {
+    setMessage("");
+    setSpinnerOn(true);
+    axios
+      .post(loginUrl, { username, password })
+      .then((res) => {
+        const token = res.data.token;
+        window.localStorage.setItem("token", token);
+        setMessage(res.data.message);
+        redirectToArticles();
+      })
+      .catch((err) => {
+        setMessage(err.response.message);
+      })
+      .finally(() => {
+        setSpinnerOn(false);
+      });
     // ✨ implement
     // We should flush the message state, turn on the spinner
     // and launch a request to the proper endpoint.
@@ -39,6 +59,22 @@ export default function App() {
   }
 
   const getArticles = () => {
+    setSpinnerOn(true);
+    setMessage("");
+    axiosWithAuth()
+      .get(articlesUrl)
+      .then((res) => {
+        setArticles(res.data.articles);
+        setMessage(res.data.message);
+      })
+      .catch((err) => {
+        err.response.status === 401
+          ? redirectToLogin()
+          : setMessage(err.response.data.message);
+      })
+      .finally(() => {
+        setSpinnerOn(false);
+      });
     // ✨ implement
     // We should flush the message state, turn on the spinner
     // and launch an authenticated request to the proper endpoint.
@@ -50,6 +86,21 @@ export default function App() {
   }
 
   const postArticle = article => {
+    setSpinnerOn(true);
+    axiosWithAuth()
+      .post(articlesUrl, article)
+      .then((res) => {
+        setArticles([...articles, res.data.article]);
+        setMessage(res.data.message);
+      })
+      .catch((err) => {
+        err.response.status === 401
+          ? redirectToLogin()
+          : setMessage(err.response.data.message);
+      })
+      .finally(() => {
+        setSpinnerOn(false);
+      });
     // ✨ implement
     // The flow is very similar to the `getArticles` function.
     // You'll know what to do! Use log statements or breakpoints
@@ -57,37 +108,102 @@ export default function App() {
   }
 
   const updateArticle = ({ article_id, article }) => {
+    setSpinnerOn(true);
+    setMessage("");
+    axiosWithAuth()
+      .put(`${articlesUrl}/${article_id}`, article)
+      .then((res) => {
+        setMessage(res.data.message);
+        setArticles(
+          articles.map((art) => {
+            return art.article_id === article_id ? res.data.article : art;
+          })
+        );
+        setCurrentArticleId(null);
+      })
+      .catch((err) => {
+        err.response.status === 401
+          ? redirectToLogin()
+          : setMessage(err.response.data.message);
+      })
+      .finally(() => {
+        setSpinnerOn(false);
+      });
     // ✨ implement
     // You got this!
   }
 
   const deleteArticle = article_id => {
+    setMessage("");
+    setSpinnerOn(true);
+    axiosWithAuth()
+      .delete(`${articlesUrl}/${article_id}`)
+      .then((res) => {
+        setMessage(res.data.message);
+        setArticles(
+          articles.filter((art) => {
+            return art.article_id !== article_id;
+          })
+        );
+      })
+      .catch((err) => {
+        err.response.status === 401
+          ? redirectToLogin()
+          : setMessage(err.response.data.message);
+      })
+      .finally(() => {
+        setSpinnerOn(false);
+      });
     // ✨ implement
   }
 
   return (
     // ✨ fix the JSX: `Spinner`, `Message`, `LoginForm`, `ArticleForm` and `Articles` expect props ❗
     <React.StrictMode>
-      <Spinner />
-      <Message />
-      <button id="logout" onClick={logout}>Logout from app</button>
-      <div id="wrapper" style={{ opacity: spinnerOn ? "0.25" : "1" }}> {/* <-- do not change this line */}
+      <Spinner on={spinnerOn} />
+      <Message message={message} />
+      <button id="logout" onClick={logout}>
+        Logout from app
+      </button>
+      <div id="wrapper" style={{ opacity: spinnerOn ? "0.25" : "1" }}>
+        {" "}
+        {/* <-- do not change this line */}
         <h1>Advanced Web Applications</h1>
         <nav>
-          <NavLink id="loginScreen" to="/">Login</NavLink>
-          <NavLink id="articlesScreen" to="/articles">Articles</NavLink>
+          <NavLink id="loginScreen" to="/">
+            Login
+          </NavLink>
+          <NavLink id="articlesScreen" to="/articles">
+            Articles
+          </NavLink>
         </nav>
         <Routes>
-          <Route path="/" element={<LoginForm />} />
-          <Route path="articles" element={
-            <>
-              <ArticleForm />
-              <Articles />
-            </>
-          } />
+          <Route path="/" element={<LoginForm login={login} />} />
+          <Route
+            path="articles"
+            element={
+              <>
+                <ArticleForm
+                  postArticle={postArticle}
+                  updateArticle={updateArticle}
+                  setCurrentArticleId={setCurrentArticleId}
+                  articles={articles.find(
+                    (article) => article.article_id === currentArticleId
+                  )}
+                  redirectToArticles={redirectToArticles}
+                />
+                <Articles
+                  deleteArticle={deleteArticle}
+                  getArticles={getArticles}
+                  articles={articles}
+                  setCurrentArticleId={setCurrentArticleId}
+                />
+              </>
+            }
+          />
         </Routes>
         <footer>Bloom Institute of Technology 2022</footer>
       </div>
     </React.StrictMode>
-  )
+  );
 }
